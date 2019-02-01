@@ -239,7 +239,8 @@ public class CoreCLREmbedding
 
             if (File.Exists(entryAssemblyPath))
             {
-                Assembly entryAssembly = Assembly.Load(new AssemblyName(Path.GetFileNameWithoutExtension(entryAssemblyPath)));
+                Assembly entryAssembly = LoadContext.LoadFromAssemblyPath(entryAssemblyPath);
+
                 Lazy<DependencyContext> defaultDependencyContext = new Lazy<DependencyContext>(() => DependencyContext.Load(entryAssembly));
 
                 // I really don't like doing it this way, but it's the easiest way to give the running code access to the default 
