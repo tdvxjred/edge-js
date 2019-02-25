@@ -506,9 +506,7 @@ public class CoreCLREmbedding
         {
             DebugMessage("CoreCLREmbedding::Initialize (CLR) - Starting");
 
-            // The call to Marshal.PtrToStructure should be working
-            // This appears to be a .Net Core issue - https://github.com/dotnet/coreclr/issues/22394
-            // Manually marshaling as a work around
+            // I don't know why the normal isn't working
             //EdgeBootstrapperContext bootstrapperContext = Marshal.PtrToStructure<EdgeBootstrapperContext>(context);
             EdgeBootstrapperContext bootstrapperContext = new EdgeBootstrapperContext
             {
