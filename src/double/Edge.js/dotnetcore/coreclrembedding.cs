@@ -127,7 +127,7 @@ public class CoreCLREmbedding
         {
             DebugMessage("EdgeAssemblyLoadContext::LoadUnmanagedDll (CLR) - Trying to resolve {0}", unmanagedDllName);
 
-            string libraryPath = Resolver.GetNativeLibraryPath(unmanagedDllName);
+            string libraryPath = Resolver.GetNativeLibraryPath(Path.GetFileNameWithoutExtension(unmanagedDllName));
 
             if (!String.IsNullOrEmpty(libraryPath))
             {
