@@ -235,19 +235,6 @@ public class CoreCLREmbedding
                 AddDependencies(dependencyContext, RuntimeEnvironment.StandaloneApplication);
             }
 
-            string entryAssemblyPath = dependencyManifestFile.Replace(".deps.json", ".dll");
-
-            if (File.Exists(entryAssemblyPath))
-            {
-                Assembly entryAssembly = LoadContext.LoadFromAssemblyPath(entryAssemblyPath);
-
-                Lazy<DependencyContext> defaultDependencyContext = new Lazy<DependencyContext>(() => DependencyContext.Load(entryAssembly));
-
-                // I really don't like doing it this way, but it's the easiest way to give the running code access to the default 
-                // dependency context data
-                typeof(DependencyContext).GetField("_defaultContext", BindingFlags.Static | BindingFlags.NonPublic).SetValue(null, defaultDependencyContext);
-            }
-
             DebugMessage("EdgeAssemblyResolver::LoadDependencyManifest (CLR) - Finished");
         }
 
@@ -575,7 +562,7 @@ public class CoreCLREmbedding
 
             else
             {
-                assembly = Assembly.Load(new AssemblyName(assemblyFile));
+                assembly = LoadContext.LoadFromAssemblyName(new AssemblyName(assemblyFile));
             }
 
             DebugMessage("CoreCLREmbedding::GetFunc (CLR) - Assembly {0} loaded successfully", assemblyFile);
@@ -648,7 +635,7 @@ public class CoreCLREmbedding
 
                 setAssemblyLoader?.Invoke(null, new object[]
                 {
-                    new Func<Stream, Assembly>(assemblyStream => AssemblyLoadContext.Default.LoadFromStream(assemblyStream, null))
+                    new Func<Stream, Assembly>(assemblyStream => LoadContext.LoadFromStream(assemblyStream, null))
                 });
 
                 Compilers[compiler] = new Tuple<Type, MethodInfo>(compilerType, compileMethod);
