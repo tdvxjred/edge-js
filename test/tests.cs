@@ -28,6 +28,7 @@ using System.Reflection;
 using Microsoft.Extensions.DependencyModel;
 using System.Linq;
 using System.Net;
+using System.Runtime.Loader;
 // ReSharper disable UnusedMember.Global
 #endif
 
@@ -416,7 +417,7 @@ namespace Edge.Tests
 
         public async Task<object> CanUseDefaultDependencyContext(object input)
         {
-            return DependencyContext.Default.RuntimeLibraries.Single(l => l.Name == "Newtonsoft.Json").Version.ToString();
+            return AssemblyLoadContext.Default.LoadFromAssemblyName(new AssemblyName("Newtonsoft.Json")).GetName().Version.ToString();
         }
 #endif
 

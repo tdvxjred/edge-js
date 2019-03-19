@@ -602,7 +602,7 @@ public class CoreCLREmbedding
 
             if (!Compilers.ContainsKey(compiler))
             {
-                if (!DependencyContext.Default.RuntimeLibraries.Any(l => l.Name == compiler))
+                if (!Resolver.CompileAssemblies.ContainsKey(compiler))
                 {
                     if (!File.Exists(options["bootstrapDependencyManifest"].ToString()))
                     {
