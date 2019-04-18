@@ -15,6 +15,32 @@ using Microsoft.Extensions.DependencyModel;
 using DotNetRuntimeEnvironment = Microsoft.DotNet.InternalAbstractions.RuntimeEnvironment;
 using Semver;
 
+public struct V8DataUnion {
+}
+
+[StructLayout(LayoutKind.Explicit)] 
+public struct V8DataValue {
+    [FieldOffset(0)]
+    public V8Type type;
+
+    [FieldOffset(4)]
+    public int length;
+
+    [FieldOffset(8)]
+    public IntPtr ptrValue;
+    [FieldOffset(8)]
+    public int intValue;
+
+    [FieldOffset(8)]
+    public ulong doubleValue;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct V8ObjectProperty {
+    public IntPtr propertyName;
+    public V8DataValue value;
+}
+
 [StructLayout(LayoutKind.Sequential)]
 // ReSharper disable once CheckNamespace
 public struct V8ObjectData
@@ -40,7 +66,7 @@ public struct V8BufferData
     public IntPtr buffer;
 }
 
-public enum V8Type
+public enum V8Type : int
 {
     Function = 1,
     Buffer = 2,
@@ -933,6 +959,294 @@ public class CoreCLREmbedding
         }
     }
 
+    [SecurityCritical]
+    public static void FreeMarshalData_2(V8DataValue v8Value)
+    {
+        switch ((V8Type)v8Value.type)
+        {
+            case V8Type.String:
+            case V8Type.Buffer:
+                Marshal.FreeHGlobal(v8Value.ptrValue);
+                break;
+
+            case V8Type.Object:
+            case V8Type.Exception:
+                for (int i = 0; i < v8Value.length; i++)
+                {
+                    int ptrSize = Marshal.SizeOf<V8ObjectProperty>();
+                    V8ObjectProperty prop = Marshal.PtrToStructure<V8ObjectProperty>(v8Value.ptrValue + ptrSize * i);
+                    FreeMarshalData_2(prop.value);
+                }
+
+                Marshal.FreeHGlobal(v8Value.ptrValue);
+
+                break;
+
+            case V8Type.Array:
+                for (int i = 0; i < v8Value.length; i++)
+                {
+                    int ptrSize = Marshal.SizeOf<V8DataValue>();
+                    V8DataValue data = Marshal.PtrToStructure<V8DataValue>(v8Value.ptrValue + ptrSize * i);
+                    FreeMarshalData_2(data);
+                }
+
+                Marshal.FreeHGlobal(v8Value.ptrValue);
+
+                break;
+
+            case V8Type.Null:
+            case V8Type.Function:
+                break;
+
+            default:
+                throw new Exception("Unsupported marshalled data type: " + v8Value.type);
+        }
+    }
+    public static void MarshalCLRToV8_2(object clrObject, ref V8DataValue value)
+    {
+        if (clrObject == null)
+        {
+            value.type = V8Type.Null;
+        }
+
+        else if (clrObject is string)
+        {
+            value.type = V8Type.String;
+            string s = clrObject.ToString();
+            value.ptrValue = Marshal.StringToHGlobalAnsi(s);
+            value.length = s.Length;
+        }
+
+        else if (clrObject is bool)
+        {
+            value.type = V8Type.Boolean;
+            value.intValue = ((bool)clrObject) ? 1: 0;
+        }
+
+        else if (clrObject is DateTime)
+        {
+            value.type  = V8Type.Date;
+            DateTime dateTime = (DateTime) clrObject;
+
+            if (dateTime.Kind == DateTimeKind.Local)
+            {
+                dateTime = dateTime.ToUniversalTime();
+            }
+
+            else if (dateTime.Kind == DateTimeKind.Unspecified)
+            {
+                dateTime = new DateTime(dateTime.Ticks, DateTimeKind.Utc);
+            }
+
+            long ticks = (dateTime.Ticks - MinDateTimeTicks)/10000;
+            value.doubleValue = WriteDouble_2(ticks);
+        }
+
+        else if (clrObject is short)
+        {
+            value.type = V8Type.Int32;
+            value.intValue  = (short)(clrObject);
+        }
+
+        else if (clrObject is int)
+        {
+            value.type = V8Type.Int32;
+            value.intValue = (int)clrObject;
+        }
+
+        else if (clrObject is long)
+        {
+            value.type = V8Type.Number;
+            value.doubleValue = WriteDouble_2((long)clrObject);
+        }
+
+        else if (clrObject is double)
+        {
+            value.type = V8Type.Number;
+            value.doubleValue = WriteDouble_2((double)clrObject);
+        }
+
+        else if (clrObject is float)
+        {
+            value.type = V8Type.Number;
+            value.doubleValue = WriteDouble_2((float)clrObject);
+        }
+
+        else if (clrObject is decimal || clrObject is Enum || clrObject is char || clrObject is Guid || clrObject is DateTimeOffset || clrObject is Uri )
+
+        {
+            value.type = V8Type.String;
+            string s = clrObject.ToString();
+            value.ptrValue = Marshal.StringToHGlobalAnsi(s);
+            value.length = s.Length;
+        }
+
+        else if (clrObject is byte[] || clrObject is IEnumerable<byte>)
+        {
+            value.type = V8Type.Buffer;
+
+            byte[] buffer;
+
+            if (clrObject is byte[])
+            {
+                buffer = (byte[]) clrObject;
+            }
+
+            else
+            {
+                buffer = ((IEnumerable<byte>) clrObject).ToArray();
+            }
+
+            value.ptrValue = Marshal.AllocHGlobal(buffer.Length);
+            value.length = buffer.Length;
+
+            Marshal.Copy(buffer, 0, value.ptrValue, value.length);
+        }
+
+        else if (clrObject is IDictionary || clrObject is ExpandoObject)
+        {
+            value.type = V8Type.Object;
+
+            IEnumerable keys;
+            int keyCount;
+            Func<object, object> getValue;
+
+            if (clrObject is ExpandoObject)
+            {
+                IDictionary<string, object> objectDictionary = (IDictionary<string, object>) clrObject;
+
+                keys = objectDictionary.Keys;
+                keyCount = objectDictionary.Keys.Count;
+                getValue = index => objectDictionary[index.ToString()];
+            }
+            else
+            {
+                IDictionary objectDictionary = (IDictionary) clrObject;
+
+                keys = objectDictionary.Keys;
+                keyCount = objectDictionary.Keys.Count;
+                getValue = index => objectDictionary[index];
+            }
+
+            V8ObjectProperty[] props = new V8ObjectProperty[keyCount];
+
+            int counter = 0;
+
+            foreach (object key in keys)
+            {
+                V8ObjectProperty property = new V8ObjectProperty();
+                V8DataValue data = new V8DataValue();
+
+                MarshalCLRToV8_2(getValue(key), ref data);
+                property.propertyName = Marshal.StringToHGlobalAnsi(key.ToString());
+                property.value = data;
+                props[counter] = property;
+                counter++;
+            }
+
+            value.ptrValue = MarshalArrayToPtr(props);
+            value.length = keyCount;
+        }
+
+        else if (clrObject is IEnumerable)
+        {
+            value.type = V8Type.Array;
+
+            List<V8DataValue> values = new List<V8DataValue>();
+
+            foreach (object item in (IEnumerable) clrObject)
+            {
+                V8DataValue itemValue = new V8DataValue();
+
+                MarshalCLRToV8_2(item, ref itemValue);
+                values.Add(itemValue);
+            }
+
+            value.ptrValue = MarshalArrayToPtr(values);
+            value.length = values.Count;
+        }
+
+        else if (clrObject.GetType().GetTypeInfo().IsGenericType && clrObject.GetType().GetGenericTypeDefinition() == typeof (Func<,>))
+        {
+            Func<object, Task<object>> funcObject = clrObject as Func<object, Task<object>>;
+
+            if (funcObject == null)
+            {
+                throw new Exception("Properties that return Func<> instances must return Func<object, Task<object>> instances");
+            }
+
+            value.type = V8Type.Function;
+            value.ptrValue = GCHandle.ToIntPtr(GCHandle.Alloc(funcObject));
+        }
+
+        else
+        {
+            value.type = clrObject is Exception
+                ? V8Type.Exception
+                : V8Type.Object;
+
+            if (clrObject is Exception)
+            {
+                AggregateException aggregateException = clrObject as AggregateException;
+
+                if (aggregateException?.InnerExceptions != null && aggregateException.InnerExceptions.Count > 0)
+                {
+                    clrObject = aggregateException.InnerExceptions[0];
+                }
+
+                else
+                {
+                    TargetInvocationException targetInvocationException = clrObject as TargetInvocationException;
+
+                    if (targetInvocationException?.InnerException != null)
+                    {
+                        clrObject = targetInvocationException.InnerException;
+                    }
+                }
+            }
+
+            List<Tuple<string, Func<object, object>>> propertyAccessors = GetPropertyAccessors(clrObject.GetType());
+            int counter = 0;
+
+            V8ObjectProperty[] propValues = new V8ObjectProperty[propertyAccessors.Count];
+
+            foreach (Tuple<string, Func<object, object>> propertyAccessor in propertyAccessors)
+            {
+
+                V8DataValue data = new V8DataValue();
+                if(clrObject.GetType().FullName.StartsWith("System.Reflection"))
+                {
+                    data.type = V8Type.String;
+                    data.length = 0;
+                    data.ptrValue = Marshal.StringToHGlobalAnsi(string.Empty);
+                }
+                else
+                {
+                    MarshalCLRToV8_2(propertyAccessor.Item2(clrObject), ref data);
+                }
+
+                V8ObjectProperty propValue = new V8ObjectProperty();
+                propValue.propertyName = Marshal.StringToHGlobalAnsi(propertyAccessor.Item1);
+                propValue.value = data;
+                propValues[counter] = propValue;
+                counter++;
+            }
+
+            value.ptrValue = MarshalArrayToPtr(propValues);
+            value.length = propertyAccessors.Count;
+        }
+    }
+
+    private static IntPtr MarshalArrayToPtr<T>(IList<T> array) {
+        int ptrSize = Marshal.SizeOf<T>();
+        IntPtr ptr =  Marshal.AllocHGlobal(ptrSize * array.Count);
+        for (int i = 0; i < array.Count; i++) {
+            Marshal.StructureToPtr(array[i], ptr + i * ptrSize, false);
+        }
+        return ptr;
+    }
+
+
     // ReSharper disable once InconsistentNaming
     public static IntPtr MarshalCLRToV8(object clrObject, out V8Type v8Type)
     {
@@ -1304,12 +1618,10 @@ public class CoreCLREmbedding
                 throw new Exception("Unsupported V8 object type: " + objectType + ".");
         }
     }
-
-    private static unsafe void WriteDouble(IntPtr pointer, double value)
-    {
+    private static unsafe void WriteDouble(IntPtr ptr, double value) {
         try
         {
-            byte* address = (byte*)pointer;
+            byte* address = (byte*)ptr;
 
             if ((unchecked((int)address) & 0x7) == 0)
             {
@@ -1335,6 +1647,42 @@ public class CoreCLREmbedding
         {
             throw new Exception("Access violation.");
         }
+
+    }
+
+    private static unsafe ulong WriteDouble_2(double value)
+    {
+        ulong jsValue = 0;
+        try
+        {
+            byte* address = (byte*)&jsValue;
+
+            if ((unchecked((int)address) & 0x7) == 0)
+            {
+                *((double*)address) = value;
+            }
+
+            else
+            {
+                byte* valuePointer = (byte*)&value;
+
+                address[0] = valuePointer[0];
+                address[1] = valuePointer[1];
+                address[2] = valuePointer[2];
+                address[3] = valuePointer[3];
+                address[4] = valuePointer[4];
+                address[5] = valuePointer[5];
+                address[6] = valuePointer[6];
+                address[7] = valuePointer[7];
+            }
+        }
+
+        catch (NullReferenceException)
+        {
+            throw new Exception("Access violation.");
+        }
+
+        return jsValue;
     }
 
     private static unsafe double ReadDouble(IntPtr pointer)
