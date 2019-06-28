@@ -600,7 +600,7 @@ HRESULT CoreClrEmbedding::Initialize(BOOL debugMode)
     CREATE_DELEGATE("CallFunc", &callFunc);
     CREATE_DELEGATE("ContinueTask", &continueTask);
     CREATE_DELEGATE("FreeHandle", &freeHandle);
-    CREATE_DELEGATE("FreeMarshalData", &freeMarshalData);
+    CREATE_DELEGATE("FreeMarshalData_3", &freeMarshalData);
     CREATE_DELEGATE("SetCallV8FunctionDelegate", &setCallV8Function);
     CREATE_DELEGATE("CompileFunc", &compileFunc);
 	CREATE_DELEGATE("Initialize", &initialize);

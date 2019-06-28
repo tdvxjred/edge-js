@@ -15,9 +15,6 @@ using Microsoft.Extensions.DependencyModel;
 using DotNetRuntimeEnvironment = Microsoft.DotNet.InternalAbstractions.RuntimeEnvironment;
 using Semver;
 
-public struct V8DataUnion {
-}
-
 [StructLayout(LayoutKind.Explicit)] 
 public struct V8DataValue {
     [FieldOffset(0)]
@@ -619,7 +616,7 @@ public class CoreCLREmbedding
             DebugMessage("CoreCLREmbedding::GetFunc (CLR) - Exception was thrown: {0}{1}{2}", e.Message, Environment.NewLine, e.StackTrace);
 
             V8Type v8Type;
-            Marshal.WriteIntPtr(exception, MarshalCLRToV8(e, out v8Type));
+            Marshal.WriteIntPtr(exception, MarshalCLRToV8_3(e, out v8Type));
 
             return IntPtr.Zero;
         }
@@ -628,18 +625,22 @@ public class CoreCLREmbedding
     [SecurityCritical]
     public static IntPtr CompileFunc(IntPtr v8Options, int payloadType, IntPtr exception)
     {
+            DebugMessage("CoreCLREmbedding::CompileFunc (CLR) - Starting");
         try
         {
-            Marshal.WriteIntPtr(exception, IntPtr.Zero);
+            //Marshal.WriteIntPtr(exception, IntPtr.Zero);
+            DebugMessage("CoreCLREmbedding::CompileFunc (CLR) - MarshalV*ToCLR");
 
             IDictionary<string, object> options = (IDictionary<string, object>)MarshalV8ToCLR(v8Options, (V8Type)payloadType);
             string compiler = (string)options["compiler"];
+            DebugMessage("CoreCLREmbedding::CompileFunc (CLR) - Marshalled v8Options to CLR");
 
             MethodInfo compileMethod;
             Type compilerType;
 
             if (!Compilers.ContainsKey(compiler))
             {
+                DebugMessage("CoreCLREmbedding::CompileFunc (CLR) - Attempting to load assembly {0}", compiler);
                 if (!DependencyContext.Default.RuntimeLibraries.Any(l => l.Name == compiler))
                 {
                     if (!File.Exists(options["bootstrapDependencyManifest"].ToString()))
@@ -680,10 +681,11 @@ public class CoreCLREmbedding
             }
 
             else
-            {
-                compilerType = Compilers[compiler].Item1;
+        {
+            compilerType = Compilers[compiler].Item1;
                 compileMethod = Compilers[compiler].Item2;
             }
+            DebugMessage("CoreCLREmbedding::CompileFunc (CLR) - Creating compiler");
 
             object compilerInstance = Activator.CreateInstance(compilerType);
 
@@ -705,7 +707,7 @@ public class CoreCLREmbedding
             DebugMessage("CoreCLREmbedding::CompileFunc (CLR) - Exception was thrown: {0}\n{1}", e.InnerException.Message, e.InnerException.StackTrace);
 
             V8Type v8Type;
-            Marshal.WriteIntPtr(exception, MarshalCLRToV8(e, out v8Type));
+            Marshal.WriteIntPtr(exception, MarshalCLRToV8_3(e, out v8Type));
 
             return IntPtr.Zero;
         }
@@ -715,7 +717,7 @@ public class CoreCLREmbedding
             DebugMessage("CoreCLREmbedding::CompileFunc (CLR) - Exception was thrown: {0}{1}{2}", e.Message, Environment.NewLine, e.StackTrace);
 
             V8Type v8Type;
-            Marshal.WriteIntPtr(exception, MarshalCLRToV8(e, out v8Type));
+            Marshal.WriteIntPtr(exception, MarshalCLRToV8_3(e, out v8Type));
 
             return IntPtr.Zero;
         }
@@ -754,7 +756,7 @@ public class CoreCLREmbedding
 
                     V8Type taskExceptionType;
 
-                    Marshal.WriteIntPtr(result, MarshalCLRToV8(functionTask.Exception, out taskExceptionType));
+                    Marshal.WriteIntPtr(result, MarshalCLRToV8_3(functionTask.Exception, out taskExceptionType));
                     Marshal.WriteInt32(resultType, (int)V8Type.Exception);
                     break;
                 }
@@ -763,7 +765,7 @@ public class CoreCLREmbedding
                     DebugMessage("CoreCLREmbedding::CallFunc (CLR) - .NET method ran synchronously, marshalling data for V8");
 
                     V8Type taskResultType;
-                    IntPtr marshalData = MarshalCLRToV8(functionTask.Result, out taskResultType);
+                    IntPtr marshalData = MarshalCLRToV8_3(functionTask.Result, out taskResultType);
 
                     DebugMessage("CoreCLREmbedding::CallFunc (CLR) - Method return data is of type {0}", taskResultType.ToString("G"));
 
@@ -792,7 +794,7 @@ public class CoreCLREmbedding
 
             V8Type v8Type;
 
-            Marshal.WriteIntPtr(result, MarshalCLRToV8(e, out v8Type));
+            Marshal.WriteIntPtr(result, MarshalCLRToV8_3(e, out v8Type));
             Marshal.WriteInt32(resultType, (int)v8Type);
             Marshal.WriteInt32(taskState, (int)TaskStatus.Faulted);
         }
@@ -814,13 +816,13 @@ public class CoreCLREmbedding
 
             try
             {
-                resultObject = MarshalCLRToV8(task.Exception, out v8Type);
+                resultObject = MarshalCLRToV8_3(task.Exception, out v8Type);
             }
 
             catch (Exception e)
             {
                 taskStatus = TaskStatus.Faulted;
-                resultObject = MarshalCLRToV8(e, out v8Type);
+                resultObject = MarshalCLRToV8_3(e, out v8Type);
             }
         }
 
@@ -830,13 +832,13 @@ public class CoreCLREmbedding
 
             try
             {
-                resultObject = MarshalCLRToV8(task.Result, out v8Type);
+                resultObject = MarshalCLRToV8_3(task.Result, out v8Type);
             }
 
             catch (Exception e)
             {
                 taskStatus = TaskStatus.Faulted;
-                resultObject = MarshalCLRToV8(e, out v8Type);
+                resultObject = MarshalCLRToV8_3(e, out v8Type);
             }
         }
 
@@ -869,7 +871,7 @@ public class CoreCLREmbedding
             DebugMessage("CoreCLREmbedding::ContinueTask (CLR) - Exception was thrown: {0}{1}{2}", e.Message, Environment.NewLine, e.StackTrace);
 
             V8Type v8Type;
-            Marshal.WriteIntPtr(exception, MarshalCLRToV8(e, out v8Type));
+            Marshal.WriteIntPtr(exception, MarshalCLRToV8_3(e, out v8Type));
         }
     }
 
@@ -887,7 +889,7 @@ public class CoreCLREmbedding
             DebugMessage("CoreCLREmbedding::SetCallV8FunctionDelegate (CLR) - Exception was thrown: {0}{1}{2}", e.Message, Environment.NewLine, e.StackTrace);
 
             V8Type v8Type;
-            Marshal.WriteIntPtr(exception, MarshalCLRToV8(e, out v8Type));
+            Marshal.WriteIntPtr(exception, MarshalCLRToV8_3(e, out v8Type));
         }
     }
 
@@ -958,6 +960,13 @@ public class CoreCLREmbedding
                 throw new Exception("Unsupported marshalled data type: " + v8Type);
         }
     }
+    [SecurityCritical]
+    public static void FreeMarshalData_3(IntPtr marshalData, int v8Type)
+    {
+        V8DataValue v8Value = Marshal.PtrToStructure<V8DataValue>(marshalData);
+        Marshal.FreeHGlobal(marshalData);
+        FreeMarshalData_2(v8Value);
+    }
 
     [SecurityCritical]
     public static void FreeMarshalData_2(V8DataValue v8Value)
@@ -994,23 +1003,43 @@ public class CoreCLREmbedding
 
                 break;
 
-            case V8Type.Null:
+            case V8Type.Boolean:
+            case V8Type.Date:
             case V8Type.Function:
+            case V8Type.Int32:
+            case V8Type.Null:
+            case V8Type.Number:
+            case V8Type.UInt32:
                 break;
 
             default:
                 throw new Exception("Unsupported marshalled data type: " + v8Value.type);
         }
     }
+    public static IntPtr MarshalCLRToV8_3(object clrObject, out V8Type type) 
+    {
+        DebugMessage("MarshalCLRToV8_3");
+
+        type = V8Type.Null;
+        V8DataValue value = new V8DataValue();
+        var ptr = Marshal.AllocHGlobal(Marshal.SizeOf<V8DataValue>());
+        MarshalCLRToV8_2(clrObject, ref value);
+        Marshal.StructureToPtr(value, ptr, false);
+        return ptr;
+    }
+
     public static void MarshalCLRToV8_2(object clrObject, ref V8DataValue value)
     {
         if (clrObject == null)
         {
+            DebugMessage("MarshalCLRToV8_2 - Null");
+
             value.type = V8Type.Null;
         }
 
         else if (clrObject is string)
         {
+            DebugMessage("MarshalCLRToV8_2 - string");
             value.type = V8Type.String;
             string s = clrObject.ToString();
             value.ptrValue = Marshal.StringToHGlobalAnsi(s);
@@ -1019,12 +1048,14 @@ public class CoreCLREmbedding
 
         else if (clrObject is bool)
         {
+            DebugMessage("MarshalCLRToV8_2 - bool");
             value.type = V8Type.Boolean;
-            value.intValue = ((bool)clrObject) ? 1: 0;
+            value.intValue = ((bool)clrObject) ? 1 : 0;
         }
 
         else if (clrObject is DateTime)
         {
+            DebugMessage("MarshalCLRToV8_2 - DateTime");
             value.type  = V8Type.Date;
             DateTime dateTime = (DateTime) clrObject;
 
@@ -1044,37 +1075,42 @@ public class CoreCLREmbedding
 
         else if (clrObject is short)
         {
+            DebugMessage("MarshalCLRToV8_2 - short");
             value.type = V8Type.Int32;
             value.intValue  = (short)(clrObject);
         }
 
         else if (clrObject is int)
         {
+            DebugMessage("MarshalCLRToV8_2 - int");
             value.type = V8Type.Int32;
             value.intValue = (int)clrObject;
         }
 
         else if (clrObject is long)
         {
+            DebugMessage("MarshalCLRToV8_2 - long");
             value.type = V8Type.Number;
             value.doubleValue = WriteDouble_2((long)clrObject);
         }
 
         else if (clrObject is double)
         {
+            DebugMessage("MarshalCLRToV8_2 - double");
             value.type = V8Type.Number;
             value.doubleValue = WriteDouble_2((double)clrObject);
         }
 
         else if (clrObject is float)
         {
+            DebugMessage("MarshalCLRToV8_2 - float");
             value.type = V8Type.Number;
             value.doubleValue = WriteDouble_2((float)clrObject);
         }
 
         else if (clrObject is decimal || clrObject is Enum || clrObject is char || clrObject is Guid || clrObject is DateTimeOffset || clrObject is Uri )
-
         {
+            DebugMessage("MarshalCLRToV8_2 - " + clrObject.GetType());
             value.type = V8Type.String;
             string s = clrObject.ToString();
             value.ptrValue = Marshal.StringToHGlobalAnsi(s);
@@ -1083,6 +1119,7 @@ public class CoreCLREmbedding
 
         else if (clrObject is byte[] || clrObject is IEnumerable<byte>)
         {
+            DebugMessage("MarshalCLRToV8_2 - " + clrObject.GetType());
             value.type = V8Type.Buffer;
 
             byte[] buffer;
@@ -1091,7 +1128,6 @@ public class CoreCLREmbedding
             {
                 buffer = (byte[]) clrObject;
             }
-
             else
             {
                 buffer = ((IEnumerable<byte>) clrObject).ToArray();
@@ -1105,6 +1141,7 @@ public class CoreCLREmbedding
 
         else if (clrObject is IDictionary || clrObject is ExpandoObject)
         {
+            DebugMessage("MarshalCLRToV8_2 - " + clrObject.GetType());
             value.type = V8Type.Object;
 
             IEnumerable keys;
@@ -1144,15 +1181,22 @@ public class CoreCLREmbedding
                 counter++;
             }
 
-            value.ptrValue = MarshalArrayToPtr(props);
+            value.ptrValue = MarshalListToPtr(props);
             value.length = keyCount;
         }
 
         else if (clrObject is IEnumerable)
         {
+            DebugMessage("MarshalCLRToV8_2 - " + clrObject.GetType());
             value.type = V8Type.Array;
 
-            List<V8DataValue> values = new List<V8DataValue>();
+            List<V8DataValue> values;
+            if (clrObject is ICollection) {
+                values = new List<V8DataValue>(((ICollection)clrObject).Count);
+            }
+            else {
+                values = new List<V8DataValue>();
+            }
 
             foreach (object item in (IEnumerable) clrObject)
             {
@@ -1162,12 +1206,13 @@ public class CoreCLREmbedding
                 values.Add(itemValue);
             }
 
-            value.ptrValue = MarshalArrayToPtr(values);
+            value.ptrValue = MarshalListToPtr(values);
             value.length = values.Count;
         }
 
         else if (clrObject.GetType().GetTypeInfo().IsGenericType && clrObject.GetType().GetGenericTypeDefinition() == typeof (Func<,>))
         {
+            DebugMessage("MarshalCLRToV8_2 - " + clrObject.GetType());
             Func<object, Task<object>> funcObject = clrObject as Func<object, Task<object>>;
 
             if (funcObject == null)
@@ -1181,6 +1226,7 @@ public class CoreCLREmbedding
 
         else
         {
+            DebugMessage("MarshalCLRToV8_2 - " + clrObject.GetType());
             value.type = clrObject is Exception
                 ? V8Type.Exception
                 : V8Type.Object;
@@ -1212,7 +1258,6 @@ public class CoreCLREmbedding
 
             foreach (Tuple<string, Func<object, object>> propertyAccessor in propertyAccessors)
             {
-
                 V8DataValue data = new V8DataValue();
                 if(clrObject.GetType().FullName.StartsWith("System.Reflection"))
                 {
@@ -1232,12 +1277,12 @@ public class CoreCLREmbedding
                 counter++;
             }
 
-            value.ptrValue = MarshalArrayToPtr(propValues);
+            value.ptrValue = MarshalListToPtr(propValues);
             value.length = propertyAccessors.Count;
         }
     }
 
-    private static IntPtr MarshalArrayToPtr<T>(IList<T> array) {
+    private static IntPtr MarshalListToPtr<T>(IList<T> array) {
         int ptrSize = Marshal.SizeOf<T>();
         IntPtr ptr =  Marshal.AllocHGlobal(ptrSize * array.Count);
         for (int i = 0; i < array.Count; i++) {
@@ -1245,7 +1290,6 @@ public class CoreCLREmbedding
         }
         return ptr;
     }
-
 
     // ReSharper disable once InconsistentNaming
     public static IntPtr MarshalCLRToV8(object clrObject, out V8Type v8Type)
@@ -1557,6 +1601,7 @@ public class CoreCLREmbedding
 
     public static object MarshalV8ToCLR(IntPtr v8Object, V8Type objectType)
     {
+        DebugMessage("MarshalV8ToCLR - {0}", objectType);
         switch (objectType)
         {
             case V8Type.String:

@@ -127,6 +127,7 @@ class CoreClrFunc
 		static void FreeMarshalData(void* marshalData, int payloadType);
 		static void MarshalV8ToCLR(v8::Local<v8::Value> jsdata, void** marshalData, int* payloadType);
 		static v8::Local<v8::Value> MarshalCLRToV8(void* marshalData, int payloadType);
+		static v8::Local<v8::Value> MarshalCLRToV8_2(void* marshalData);
 		static void MarshalV8ExceptionToCLR(v8::Local<v8::Value> exception, void** marshalData);
 };
 

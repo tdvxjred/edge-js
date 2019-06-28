@@ -1,5 +1,23 @@
 #include "edge.h"
 
+union V8DataValueData {
+	void* ptrValue;
+	int intValue;
+	double doubleValue;
+};
+
+struct V8DataValue {
+    int type;
+    int length;
+		V8DataValueData u_data;
+};
+
+struct V8PropertyValue {
+	char* propertyName;
+	V8DataValue value;
+};
+
+
 CoreClrFunc::CoreClrFunc()
 {
 	functionHandle = NULL;
@@ -114,12 +132,12 @@ v8::Local<v8::Value> CoreClrFunc::Call(v8::Local<v8::Value> payload, v8::Local<v
 		{
 			if (taskState == TaskStatusRanToCompletion)
 			{
-				return scope.Escape(CoreClrFunc::MarshalCLRToV8(result, resultType));
+				return scope.Escape(CoreClrFunc::MarshalCLRToV8_2(result));
 			}
 
 			else
 			{
-				Nan::ThrowError(CoreClrFunc::MarshalCLRToV8(result, resultType));
+				Nan::ThrowError(CoreClrFunc::MarshalCLRToV8_2(result));
 			}
 		}
 
@@ -425,6 +443,84 @@ void CoreClrFunc::MarshalV8ToCLR(v8::Local<v8::Value> jsdata, void** marshalData
 		*marshalData = objectData;
 		*payloadType = V8TypeObject;
 	}
+}
+
+v8::Local<v8::Value> CoreClrFunc::MarshalCLRToV8_2(void* marshalData)
+{
+	V8DataValue* value = (V8DataValue*)marshalData;
+	
+
+	Nan::EscapableHandleScope scope;
+
+	switch (value->type) 
+	{
+		case V8TypeString:
+			return scope.Escape(Nan::New<v8::String>((char*)value->u_data.ptrValue).ToLocalChecked());
+
+		case V8TypeInt32:
+			return scope.Escape(Nan::New<v8::Integer>(value->u_data.intValue));
+
+		case V8TypeNumber:
+			return scope.Escape(Nan::New<v8::Number>(value->u_data.doubleValue));
+
+		case V8TypeDate:
+			return scope.Escape(Nan::New<v8::Date>(value->u_data.doubleValue).ToLocalChecked());
+
+		case V8TypeBoolean:
+		{
+			bool boolValue = value->u_data.intValue != 0;
+			return scope.Escape(Nan::New<v8::Boolean>(boolValue));
+		}
+
+		case V8TypeArray:
+		{
+			V8DataValue* arrayData = (V8DataValue*)value->u_data.ptrValue;
+
+			v8::Local<v8::Array> v8Array = Nan::New<v8::Array>();
+			for (int i = 0; i < value->length; i++)
+			{
+				v8Array->Set(i, MarshalCLRToV8_2(&arrayData[i]));
+			}
+
+			return scope.Escape(v8Array);
+		}
+
+		case V8TypeObject:
+		case V8TypeException: 
+		{
+			V8PropertyValue* objectProps = (V8PropertyValue*) value->u_data.ptrValue;
+			v8::Local<v8::Object> v8Object = Nan::New<v8::Object>();
+
+			for (int i = 0; i < value->length; i++)
+			{
+				v8Object->Set(Nan::New<v8::String>(objectProps[i].propertyName).ToLocalChecked(), MarshalCLRToV8_2(&objectProps[i].value));
+			}
+
+			if (value->type == V8TypeException)
+			{
+				v8::Local<v8::String> name = v8::Local<v8::String>::Cast(v8Object->Get(Nan::New<v8::String>("Name").ToLocalChecked()));
+				v8::Local<v8::String> message = v8::Local<v8::String>::Cast(v8Object->Get(Nan::New<v8::String>("Message").ToLocalChecked()));
+
+				v8Object->SetPrototype(Nan::GetCurrentContext(), v8::Exception::Error(message));
+				v8Object->Set(Nan::New<v8::String>("message").ToLocalChecked(), message);
+				v8Object->Set(Nan::New<v8::String>("name").ToLocalChecked(), name);
+			}
+
+			return scope.Escape(v8Object);
+		}
+
+		case V8TypeNull:
+			return scope.Escape(Nan::Null());
+
+		case V8TypeBuffer:
+			if (value->length > 0)
+			{
+				return scope.Escape(Nan::CopyBuffer((const char*)value->u_data.ptrValue, value->length).ToLocalChecked());
+			}
+			return scope.Escape(Nan::NewBuffer(0).ToLocalChecked());
+	}
+
+	return scope.Escape(Nan::Null());
 }
 
 v8::Local<v8::Value> CoreClrFunc::MarshalCLRToV8(void* marshalData, int payloadType)
