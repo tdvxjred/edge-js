@@ -141,14 +141,14 @@ echo :download_node_exe
 
 if not exist "%SELF%\build\node-%1-x86\node.exe" (
     echo Downloading Node.js binary to  "%SELF%\build\node-%1-x86\node.exe"
-	"%SELF%\build\download.exe" http://nodejs.org/dist/v%1/win-x86/node.exe "%SELF%\build\node-%1-x86\node.exe"
+	"%SELF%\build\download.exe" https://nodejs.org/dist/v%1/win-x86/node.exe "%SELF%\build\node-%1-x86\node.exe"
 ) else (
     echo "%SELF%\build\node-%1-x86\node.exe" already exists.
 )
 
 if not exist "%SELF%\build\node-%1-x64\node.exe" (
     echo Downloading Node.js binary to "%SELF%\build\node-%1-x64\node.exe"
-	"%SELF%\build\download.exe" http://nodejs.org/dist/v%1/win-x64/node.exe "%SELF%\build\node-%1-x64\node.exe"
+	"%SELF%\build\download.exe" https://nodejs.org/dist/v%1/win-x64/node.exe "%SELF%\build\node-%1-x64\node.exe"
 ) else (
     echo "%SELF%\build\node-%1-x64\node.exe" already exists.
 )
