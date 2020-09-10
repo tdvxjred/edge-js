@@ -26,7 +26,7 @@ if not exist "%SELF%\build\repl.exe" (
 )
 
 if not exist "%SELF%\build\nuget.exe" (
-	"%SELF%\build\download.exe" http://nuget.org/nuget.exe "%SELF%\build\nuget.exe"
+	"%SELF%\build\download.exe" https://nuget.org/nuget.exe "%SELF%\build\nuget.exe"
 )
 
 if not exist "%SELF%\build\%1.zip" (
@@ -46,11 +46,11 @@ call :build_node %1 x64
 if %ERRORLEVEL% neq 0 exit /b -1
 
 if not exist "%SELF%\build\node-%1-x86\node.exe" (
-	"%SELF%\build\download.exe" http://nodejs.org/dist/v%1/win-x86/node.exe "%SELF%\build\node-%1-x86\node.exe"
+	"%SELF%\build\download.exe" https://nodejs.org/dist/v%1/win-x86/node.exe "%SELF%\build\node-%1-x86\node.exe"
 )
 
 if not exist "%SELF%\build\node-%1-x64\node.exe" (
-	"%SELF%\build\download.exe" http://nodejs.org/dist/v%1/win-x64/node.exe "%SELF%\build\node-%1-x64\node.exe"
+	"%SELF%\build\download.exe" https://nodejs.org/dist/v%1/win-x64/node.exe "%SELF%\build\node-%1-x64\node.exe"
 )
 
 call :build_edge %1 x86 ia32
